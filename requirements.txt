@@ -1,0 +1,22 @@
+# Core Deep Learning Framework
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Training Infrastructure
+pytorch-lightning>=2.0.0
+lightning>=2.0.0
+
+# Configuration Management
+hydra-core>=1.3.0
+omegaconf>=2.3.0
+
+# Experiment Tracking
+wandb>=0.15.0
+
+# Data Handling
+Pillow>=9.0.0
+numpy>=1.24.0
+
+# Utilities
+tqdm>=4.65.0
+matplotlib>=3.7.0
