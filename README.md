@@ -12,7 +12,7 @@ This project implements a high-performance **Vision Transformer (ViT)** system d
 It bridges the gap between Deep Learning research and Systems Engineering. The system is architected for **Hybrid Development**:
 2.  **HPC Deployment:** JIT-compiled, high-performance training on the **Georgia Tech PACE ICE Cluster** (NVIDIA A100/V100 Nodes).
 
-## ⚡ Key Engineering Features
+## Key Engineering Features
 
 ### 1. Custom CUDA Kernels ("The Metal Layer")
 Optimized for the PACE ICE compute nodes, I implemented a custom **Fused Bias-GELU** operator in C++ and CUDA.
