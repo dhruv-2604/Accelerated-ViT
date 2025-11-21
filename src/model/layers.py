@@ -127,3 +127,101 @@ class PatchEmbedding(nn.Module):
             f"img_size={self.img_size}, patch_size={self.patch_size}, "
             f"num_patches={self.num_patches}, embed_dim={self.embed_dim}"
         )
+
+
+# ============================================================================
+# COMPONENT 2: Positional Embedding
+# ============================================================================
+
+class PositionalEmbedding(nn.Module):
+    """
+    Adds learnable positional information to patch embeddings.
+
+    THE PROBLEM:
+        After patch embedding, we have 256 vectors. But they have no sense
+        of "where" they came from in the original image!
+
+        Patch from top-left and patch from bottom-right look the same
+        to the Transformer - just vectors of numbers.
+
+    THE SOLUTION:
+        Add a unique "position vector" to each patch. The model learns
+        what these position vectors should be during training.
+
+    Example:
+        Input:  [B, 256, 256]  (patch embeddings)
+        Output: [B, 256, 256]  (patch embeddings WITH position info)
+
+    How it works:
+        We create a learnable parameter of shape [1, num_patches, embed_dim]
+        and simply ADD it to the patch embeddings:
+
+        output = patch_embeddings + positional_embeddings
+
+    Args:
+        num_patches (int): Number of patches (256 for our 64×64 images)
+        embed_dim (int): Embedding dimension (256)
+        dropout (float): Dropout probability for regularization
+    """
+
+    def __init__(
+        self,
+        num_patches: int = 256,
+        embed_dim: int = 256,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+
+        # ====================================================================
+        # Create the learnable positional embeddings
+        # ====================================================================
+        # Shape: [1, num_patches, embed_dim]
+        #         └─ Batch dim of 1 (will broadcast to any batch size)
+        #             └─ One position vector per patch
+        #                  └─ Same dimension as patch embeddings
+
+        # Initialize to zeros - the model will learn the right values
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
+
+        # Standard practice: Initialize with small random values instead of zeros
+        # This helps training start faster (breaks symmetry)
+        nn.init.trunc_normal_(self.pos_embed, std=0.02)
+
+        # ====================================================================
+        # Optional: Dropout for regularization
+        # ====================================================================
+        # Randomly zero out some dimensions during training
+        # This prevents overfitting
+        self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Add positional embeddings to patch embeddings.
+
+        Args:
+            x: Patch embeddings of shape [B, num_patches, embed_dim]
+               Example: [128, 256, 256]
+
+        Returns:
+            Embeddings with position information, same shape as input
+            Example: [128, 256, 256]
+        """
+        # ====================================================================
+        # Add positional embeddings
+        # ====================================================================
+        # self.pos_embed is [1, 256, 256]
+        # x is [B, 256, 256]
+        # PyTorch automatically broadcasts the batch dimension!
+
+        x = x + self.pos_embed
+
+        # ====================================================================
+        # Apply dropout
+        # ====================================================================
+        x = self.dropout(x)
+
+        return x
+
+    def extra_repr(self) -> str:
+        """Debug representation."""
+        return f"num_patches={self.pos_embed.size(1)}, embed_dim={self.pos_embed.size(2)}"
