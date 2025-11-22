@@ -225,3 +225,169 @@ class PositionalEmbedding(nn.Module):
     def extra_repr(self) -> str:
         """Debug representation."""
         return f"num_patches={self.pos_embed.size(1)}, embed_dim={self.pos_embed.size(2)}"
+
+
+# ============================================================================
+# COMPONENT 3: Multi-Head Self-Attention
+# ============================================================================
+
+class Attention(nn.Module):
+    """
+    Multi-Head Self-Attention mechanism.
+
+    THE CORE IDEA:
+        Each patch asks: "Which other patches are relevant to me?"
+
+        This is done through three learnable projections:
+        - Query (Q): "What am I looking for?"
+        - Key (K):   "What do I have to offer?"
+        - Value (V): "What information can I share?"
+
+    HOW IT WORKS (Step by Step):
+        1. Project input into Q, K, V
+        2. Compute attention scores: Q @ K^T (who matches with whom?)
+        3. Apply softmax (normalize scores to probabilities)
+        4. Weighted sum of Values: scores @ V
+
+    MULTI-HEAD:
+        Instead of one big attention, we do several smaller ones in parallel.
+        - Each "head" can focus on different relationships
+        - Head 1 might focus on color similarity
+        - Head 2 might focus on spatial proximity
+        - etc.
+
+    Args:
+        embed_dim (int): Input embedding dimension
+        num_heads (int): Number of attention heads
+        dropout (float): Dropout probability
+    """
+
+    def __init__(
+        self,
+        embed_dim: int = 256,
+        num_heads: int = 8,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+
+        # ====================================================================
+        # Configuration
+        # ====================================================================
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+
+        # Each head gets a portion of the embedding dimension
+        # 256 dims / 8 heads = 32 dims per head
+        self.head_dim = embed_dim // num_heads
+
+        # Sanity check: embedding must be divisible by number of heads
+        assert embed_dim % num_heads == 0, \
+            f"embed_dim ({embed_dim}) must be divisible by num_heads ({num_heads})"
+
+        # Scaling factor for attention scores (prevents huge values)
+        # We'll explain this more when we use it
+        self.scale = self.head_dim ** -0.5  # = 1 / sqrt(head_dim)
+
+        # ====================================================================
+        # Q, K, V Projections
+        # ====================================================================
+        # These are learnable linear transformations
+        # They convert our patch embeddings into Query, Key, Value vectors
+
+        # Option 1: Three separate Linear layers
+        # self.q_proj = nn.Linear(embed_dim, embed_dim)
+        # self.k_proj = nn.Linear(embed_dim, embed_dim)
+        # self.v_proj = nn.Linear(embed_dim, embed_dim)
+
+        # Option 2 (more efficient): One big Linear that we split
+        # This computes Q, K, V in one matrix multiplication!
+        self.qkv = nn.Linear(embed_dim, embed_dim * 3)
+
+        # Output projection (combines heads back together)
+        self.out_proj = nn.Linear(embed_dim, embed_dim)
+
+        # Dropout for regularization
+        self.attn_dropout = nn.Dropout(dropout)
+        self.out_dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Compute multi-head self-attention.
+
+        Args:
+            x: Input of shape [B, num_patches, embed_dim]
+               Example: [128, 256, 256]
+
+        Returns:
+            Output of shape [B, num_patches, embed_dim]
+            Example: [128, 256, 256]
+        """
+        B, N, C = x.shape  # Batch, Num patches, Channels (embed_dim)
+
+        # ====================================================================
+        # Step 1: Compute Q, K, V in one operation
+        # ====================================================================
+        # Input x:     [B, N, C]        = [128, 256, 256]
+        # After qkv:   [B, N, 3*C]      = [128, 256, 768]
+
+        qkv = self.qkv(x)
+
+        # ====================================================================
+        # Step 2: Reshape to separate Q, K, V and heads
+        # ====================================================================
+        # Current:  [B, N, 3*C]         = [128, 256, 768]
+        # Reshape:  [B, N, 3, num_heads, head_dim]  = [128, 256, 3, 8, 32]
+        # Permute:  [3, B, num_heads, N, head_dim]  = [3, 128, 8, 256, 32]
+
+        qkv = qkv.reshape(B, N, 3, self.num_heads, self.head_dim)
+        qkv = qkv.permute(2, 0, 3, 1, 4)
+
+        # Now split into Q, K, V (each has shape [B, num_heads, N, head_dim])
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        # q, k, v each: [128, 8, 256, 32]
+
+        # ====================================================================
+        # Step 3: Compute attention scores
+        # ====================================================================
+        # Q @ K^T: "How much does each query match each key?"
+        #
+        # q:      [B, heads, N, head_dim] = [128, 8, 256, 32]
+        # k^T:    [B, heads, head_dim, N] = [128, 8, 32, 256]
+        # Result: [B, heads, N, N]        = [128, 8, 256, 256]
+        #
+        # The [256, 256] matrix is: "attention from patch i to patch j"
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+
+        # ====================================================================
+        # Step 4: Softmax to get probabilities
+        # ====================================================================
+        # Convert scores to probabilities (each row sums to 1)
+        attn = attn.softmax(dim=-1)
+
+        # Optional dropout on attention weights
+        attn = self.attn_dropout(attn)
+
+        # ====================================================================
+        # Step 5: Weighted sum of values
+        # ====================================================================
+        # attn: [B, heads, N, N]       = [128, 8, 256, 256]
+        # v:    [B, heads, N, head_dim] = [128, 8, 256, 32]
+        # out:  [B, heads, N, head_dim] = [128, 8, 256, 32]
+
+        out = attn @ v
+
+        # ====================================================================
+        # Step 6: Concatenate heads and project
+        # ====================================================================
+        # Reshape: [B, N, num_heads * head_dim] = [128, 256, 256]
+        out = out.transpose(1, 2).reshape(B, N, C)
+
+        # Final projection
+        out = self.out_proj(out)
+        out = self.out_dropout(out)
+
+        return out
+
+    def extra_repr(self) -> str:
+        return f"embed_dim={self.embed_dim}, num_heads={self.num_heads}, head_dim={self.head_dim}"
