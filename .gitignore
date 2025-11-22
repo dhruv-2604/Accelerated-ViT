@@ -59,3 +59,13 @@ logs/
 # CUDA
 *.o
 *.cu.o
+
+# =============================================================================
+# TODO: COME BACK TO UNDERSTAND THESE CONCEPTS
+# =============================================================================
+# 1. Attention mechanism - specifically:
+#    - What does "Patch A attends to Patch B with weight 0.15" mean?
+#    - How does softmax(dim=-1) work on the attention matrix?
+#    - Why does attn[batch, head, from_patch, to_patch] represent attention?
+#    - File: src/model/layers.py, class Attention
+# =============================================================================

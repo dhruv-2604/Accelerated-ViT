@@ -391,3 +391,104 @@ class Attention(nn.Module):
 
     def extra_repr(self) -> str:
         return f"embed_dim={self.embed_dim}, num_heads={self.num_heads}, head_dim={self.head_dim}"
+
+
+# ============================================================================
+# COMPONENT 4: Feed-Forward Network (FFN)
+# ============================================================================
+
+class FeedForward(nn.Module):
+    """
+    Simple feed-forward network applied to each patch independently.
+
+    Structure:
+        Linear (expand) → GELU → Dropout → Linear (contract) → Dropout
+
+    Why expand then contract?
+        - Expand to higher dimension (4x) gives more "thinking space"
+        - Non-linearity (GELU) allows learning complex patterns
+        - Contract back to original dimension
+
+    THIS IS WHERE OUR CUSTOM CUDA KERNEL IS USED!
+        - The FusedBiasGELU layer replaces: Linear bias + GELU activation
+        - On GPU: Uses our fast CUDA kernel
+        - On CPU: Falls back to PyTorch
+
+    Args:
+        embed_dim (int): Input/output dimension
+        hidden_dim (int): Hidden dimension (typically 4x embed_dim)
+        dropout (float): Dropout probability
+    """
+
+    def __init__(
+        self,
+        embed_dim: int = 256,
+        hidden_dim: int = None,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+
+        # Default hidden dim is 4x the embedding dim
+        if hidden_dim is None:
+            hidden_dim = embed_dim * 4
+
+        self.embed_dim = embed_dim
+        self.hidden_dim = hidden_dim
+
+        # ====================================================================
+        # Layer 1: Expand dimension
+        # ====================================================================
+        # Input:  [B, N, 256]
+        # Output: [B, N, 1024]
+        #
+        # NOTE: We set bias=False here because FusedBiasGELU has its own bias!
+        self.fc1 = nn.Linear(embed_dim, hidden_dim, bias=False)
+
+        # ====================================================================
+        # Activation: Our custom fused layer!
+        # ====================================================================
+        # This combines: bias addition + GELU activation
+        # Import from our custom layers module
+        from src.layers.fused_gelu import FusedBiasGELU
+        self.act = FusedBiasGELU(hidden_dim)
+
+        # ====================================================================
+        # Layer 2: Contract back to original dimension
+        # ====================================================================
+        # Input:  [B, N, 1024]
+        # Output: [B, N, 256]
+        self.fc2 = nn.Linear(hidden_dim, embed_dim)
+
+        # Dropout for regularization
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through feed-forward network.
+
+        Args:
+            x: Input of shape [B, num_patches, embed_dim]
+               Example: [128, 256, 256]
+
+        Returns:
+            Output of same shape [B, num_patches, embed_dim]
+        """
+        # Expand: [B, N, 256] → [B, N, 1024]
+        x = self.fc1(x)
+
+        # Activation: FusedBiasGELU (uses CUDA kernel if available!)
+        x = self.act(x)
+
+        # Dropout
+        x = self.dropout(x)
+
+        # Contract: [B, N, 1024] → [B, N, 256]
+        x = self.fc2(x)
+
+        # Final dropout
+        x = self.dropout(x)
+
+        return x
+
+    def extra_repr(self) -> str:
+        return f"embed_dim={self.embed_dim}, hidden_dim={self.hidden_dim}"
