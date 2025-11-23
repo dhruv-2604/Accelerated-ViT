@@ -492,3 +492,118 @@ class FeedForward(nn.Module):
 
     def extra_repr(self) -> str:
         return f"embed_dim={self.embed_dim}, hidden_dim={self.hidden_dim}"
+
+
+# ============================================================================
+# COMPONENT 5: Transformer Block (combines Attention + FFN)
+# ============================================================================
+
+class TransformerBlock(nn.Module):
+    """
+    A single Transformer block.
+
+    Structure:
+        x → LayerNorm → Attention → + (residual) → LayerNorm → FFN → + (residual)
+
+    TWO KEY TRICKS:
+
+    1. LAYER NORMALIZATION:
+       - Normalizes values to prevent them from exploding/vanishing
+       - Applied BEFORE each sub-layer (this is called "Pre-Norm")
+
+    2. RESIDUAL CONNECTIONS:
+       - The "+" means we ADD the input back to the output
+       - This helps gradients flow during training
+       - Formula: output = input + sublayer(input)
+
+    Visual:
+        ┌─────────────────────────────────────────┐
+        │  Input                                  │
+        │    │                                    │
+        │    ├──────────────┐                     │
+        │    ▼              │                     │
+        │  LayerNorm        │                     │
+        │    ▼              │                     │
+        │  Attention        │ (residual)          │
+        │    ▼              │                     │
+        │    + ◄────────────┘                     │
+        │    │                                    │
+        │    ├──────────────┐                     │
+        │    ▼              │                     │
+        │  LayerNorm        │                     │
+        │    ▼              │                     │
+        │  FeedForward      │ (residual)          │
+        │    ▼              │                     │
+        │    + ◄────────────┘                     │
+        │    │                                    │
+        │  Output                                 │
+        └─────────────────────────────────────────┘
+
+    Args:
+        embed_dim (int): Embedding dimension
+        num_heads (int): Number of attention heads
+        mlp_ratio (float): Ratio of hidden dim to embed dim in FFN
+        dropout (float): Dropout probability
+    """
+
+    def __init__(
+        self,
+        embed_dim: int = 256,
+        num_heads: int = 8,
+        mlp_ratio: float = 4.0,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+
+        # ====================================================================
+        # Layer Norm 1 (before attention)
+        # ====================================================================
+        self.norm1 = nn.LayerNorm(embed_dim)
+
+        # ====================================================================
+        # Attention
+        # ====================================================================
+        self.attn = Attention(
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            dropout=dropout,
+        )
+
+        # ====================================================================
+        # Layer Norm 2 (before FFN)
+        # ====================================================================
+        self.norm2 = nn.LayerNorm(embed_dim)
+
+        # ====================================================================
+        # Feed-Forward Network
+        # ====================================================================
+        hidden_dim = int(embed_dim * mlp_ratio)
+        self.ffn = FeedForward(
+            embed_dim=embed_dim,
+            hidden_dim=hidden_dim,
+            dropout=dropout,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through transformer block.
+
+        Args:
+            x: Input of shape [B, num_patches, embed_dim]
+
+        Returns:
+            Output of same shape
+        """
+        # ====================================================================
+        # Attention block with residual connection
+        # ====================================================================
+        # Residual: x + attention(norm(x))
+        x = x + self.attn(self.norm1(x))
+
+        # ====================================================================
+        # FFN block with residual connection
+        # ====================================================================
+        # Residual: x + ffn(norm(x))
+        x = x + self.ffn(self.norm2(x))
+
+        return x
