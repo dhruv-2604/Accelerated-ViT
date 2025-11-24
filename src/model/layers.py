@@ -607,3 +607,172 @@ class TransformerBlock(nn.Module):
         x = x + self.ffn(self.norm2(x))
 
         return x
+
+
+# ============================================================================
+# COMPONENT 6: The Complete ViT Model
+# ============================================================================
+
+class ViT(nn.Module):
+    """
+    Vision Transformer (ViT) for image classification.
+
+    This combines everything we've built:
+        1. PatchEmbedding: Image → Patches
+        2. PositionalEmbedding: Add position info
+        3. TransformerBlocks: Process patches (x8 blocks)
+        4. Classification Head: Patches → Class prediction
+
+    Full pipeline:
+        Image [3, 64, 64]
+            │
+            ▼
+        PatchEmbedding → [256, 256]  (256 patches, 256 dims)
+            │
+            ▼
+        PositionalEmbedding → [256, 256]  (add position info)
+            │
+            ▼
+        TransformerBlock 1 → [256, 256]
+            │
+            ▼
+        TransformerBlock 2 → [256, 256]
+            │
+            ...
+            ▼
+        TransformerBlock 8 → [256, 256]
+            │
+            ▼
+        Global Average Pool → [256]  (average all patches)
+            │
+            ▼
+        Classification Head → [200]  (200 Tiny ImageNet classes)
+
+    Args:
+        img_size (int): Input image size (64 for Tiny ImageNet)
+        patch_size (int): Size of each patch (4)
+        in_channels (int): Number of input channels (3 for RGB)
+        num_classes (int): Number of output classes (200 for Tiny ImageNet)
+        embed_dim (int): Embedding dimension (256)
+        depth (int): Number of transformer blocks (8)
+        num_heads (int): Number of attention heads (8)
+        mlp_ratio (float): FFN hidden dim ratio (4.0)
+        dropout (float): Dropout probability (0.1)
+    """
+
+    def __init__(
+        self,
+        img_size: int = 64,
+        patch_size: int = 4,
+        in_channels: int = 3,
+        num_classes: int = 200,
+        embed_dim: int = 256,
+        depth: int = 8,
+        num_heads: int = 8,
+        mlp_ratio: float = 4.0,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+
+        self.num_classes = num_classes
+        self.embed_dim = embed_dim
+
+        # ====================================================================
+        # Step 1: Patch Embedding
+        # ====================================================================
+        self.patch_embed = PatchEmbedding(
+            img_size=img_size,
+            patch_size=patch_size,
+            in_channels=in_channels,
+            embed_dim=embed_dim,
+        )
+        num_patches = self.patch_embed.num_patches  # 256
+
+        # ====================================================================
+        # Step 2: Positional Embedding
+        # ====================================================================
+        self.pos_embed = PositionalEmbedding(
+            num_patches=num_patches,
+            embed_dim=embed_dim,
+            dropout=dropout,
+        )
+
+        # ====================================================================
+        # Step 3: Stack of Transformer Blocks
+        # ====================================================================
+        # We use nn.ModuleList to create 'depth' number of blocks
+        # Each block is identical in structure but has its own weights
+        self.blocks = nn.ModuleList([
+            TransformerBlock(
+                embed_dim=embed_dim,
+                num_heads=num_heads,
+                mlp_ratio=mlp_ratio,
+                dropout=dropout,
+            )
+            for _ in range(depth)
+        ])
+
+        # ====================================================================
+        # Step 4: Final Layer Norm
+        # ====================================================================
+        # Applied after all transformer blocks, before classification
+        self.norm = nn.LayerNorm(embed_dim)
+
+        # ====================================================================
+        # Step 5: Classification Head
+        # ====================================================================
+        # Takes the pooled features and predicts class probabilities
+        self.head = nn.Linear(embed_dim, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the entire ViT.
+
+        Args:
+            x: Input images of shape [B, C, H, W]
+               Example: [128, 3, 64, 64]
+
+        Returns:
+            Class logits of shape [B, num_classes]
+            Example: [128, 200]
+        """
+        # ====================================================================
+        # Step 1: Convert image to patches
+        # ====================================================================
+        # [B, 3, 64, 64] → [B, 256, 256]
+        x = self.patch_embed(x)
+
+        # ====================================================================
+        # Step 2: Add positional information
+        # ====================================================================
+        # [B, 256, 256] → [B, 256, 256] (same shape, but now has position info)
+        x = self.pos_embed(x)
+
+        # ====================================================================
+        # Step 3: Pass through all Transformer blocks
+        # ====================================================================
+        # Each block: [B, 256, 256] → [B, 256, 256]
+        for block in self.blocks:
+            x = block(x)
+
+        # ====================================================================
+        # Step 4: Final normalization
+        # ====================================================================
+        x = self.norm(x)
+
+        # ====================================================================
+        # Step 5: Global Average Pooling
+        # ====================================================================
+        # Average across all patches to get one vector per image
+        # [B, 256, 256] → [B, 256]
+        #
+        # dim=1 means "average across the patches dimension"
+        x = x.mean(dim=1)
+
+        # ====================================================================
+        # Step 6: Classification
+        # ====================================================================
+        # [B, 256] → [B, 200]
+        x = self.head(x)
+
+        return x
