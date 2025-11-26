@@ -26,8 +26,8 @@ wheels/
 checkpoints/
 lightning_logs/
 
-# Data
-data/
+# Data (dataset files only, not source code!)
+/data/
 tiny-imagenet-200/
 *.zip
 
