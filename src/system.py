@@ -112,3 +112,72 @@ class ViTLightningModule(pl.LightningModule):
             Logits [B, num_classes]
         """
         return self.model(x)
+
+    # ========================================================================
+    # TRAINING
+    # ========================================================================
+
+    def training_step(self, batch, batch_idx):
+        """
+        One training step (one batch).
+
+        This is called automatically by Lightning for each batch.
+
+        Args:
+            batch: Tuple of (images, labels)
+            batch_idx: Index of this batch
+
+        Returns:
+            Loss value (Lightning handles backprop automatically!)
+        """
+        # Unpack batch
+        images, labels = batch
+
+        # Forward pass
+        logits = self(images)  # Calls self.forward()
+
+        # Compute loss
+        loss = self.criterion(logits, labels)
+
+        # Compute accuracy
+        preds = torch.argmax(logits, dim=1)
+        self.train_accuracy(preds, labels)
+
+        # Log metrics (automatically sent to WandB if configured)
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("train/acc", self.train_accuracy, on_step=False, on_epoch=True, prog_bar=True)
+
+        return loss
+
+    # ========================================================================
+    # VALIDATION
+    # ========================================================================
+
+    def validation_step(self, batch, batch_idx):
+        """
+        One validation step (one batch).
+
+        Similar to training_step, but:
+        - No gradient computation (Lightning handles this)
+        - No backpropagation
+
+        Args:
+            batch: Tuple of (images, labels)
+            batch_idx: Index of this batch
+        """
+        # Unpack batch
+        images, labels = batch
+
+        # Forward pass
+        logits = self(images)
+
+        # Compute loss
+        loss = self.criterion(logits, labels)
+
+        # Compute accuracy
+        preds = torch.argmax(logits, dim=1)
+        self.val_accuracy(preds, labels)
+
+        # Log metrics
+        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/acc", self.val_accuracy, on_step=False, on_epoch=True, prog_bar=True)
