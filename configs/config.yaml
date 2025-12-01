@@ -1,0 +1,92 @@
+# =============================================================================
+# Main Configuration File for ViT Training
+# =============================================================================
+#
+# Usage:
+#   python train.py                          # Use defaults
+#   python train.py data.batch_size=256      # Override batch size
+#   python train.py experiment=tiny_vit_cuda # Load experiment preset
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Data Configuration
+# -----------------------------------------------------------------------------
+data:
+  # Path to Tiny ImageNet dataset
+  # On PACE: This will be overridden to $TMPDIR/tiny-imagenet-200
+  data_dir: "./data/tiny-imagenet-200"
+
+  # Batch size (reduce if you get OOM errors)
+  batch_size: 128
+
+  # Number of CPU workers for data loading
+  # Rule of thumb: 4 workers per GPU
+  num_workers: 4
+
+  # Pin memory for faster GPU transfer
+  pin_memory: true
+
+# -----------------------------------------------------------------------------
+# Model Configuration
+# -----------------------------------------------------------------------------
+model:
+  # Image settings (Tiny ImageNet is 64x64 RGB)
+  img_size: 64
+  patch_size: 4
+  in_channels: 3
+
+  # Number of classes (Tiny ImageNet has 200)
+  num_classes: 200
+
+  # Architecture settings
+  embed_dim: 256     # Embedding dimension
+  depth: 8           # Number of transformer blocks
+  num_heads: 8       # Number of attention heads
+  mlp_ratio: 4.0     # FFN hidden dim = embed_dim * mlp_ratio
+  dropout: 0.1       # Dropout probability
+
+# -----------------------------------------------------------------------------
+# Training Configuration
+# -----------------------------------------------------------------------------
+training:
+  # Learning rate
+  learning_rate: 5e-4
+
+  # Weight decay for AdamW (helps prevent overfitting)
+  weight_decay: 0.05
+
+  # Learning rate schedule
+  warmup_epochs: 5
+  max_epochs: 50
+
+# -----------------------------------------------------------------------------
+# Trainer Configuration (PyTorch Lightning)
+# -----------------------------------------------------------------------------
+trainer:
+  # Hardware
+  accelerator: "auto"  # auto-detect GPU/CPU
+  devices: 1           # Number of GPUs
+
+  # Precision (16-mixed = mixed precision for speed)
+  precision: "16-mixed"
+
+  # Training settings
+  max_epochs: ${training.max_epochs}  # Reference from training config
+
+  # Logging
+  log_every_n_steps: 50
+
+  # Checkpointing
+  enable_checkpointing: true
+
+  # Gradient clipping (prevents exploding gradients)
+  gradient_clip_val: 1.0
+
+# -----------------------------------------------------------------------------
+# Logging Configuration (Weights & Biases)
+# -----------------------------------------------------------------------------
+wandb:
+  project: "accelerated-vit"
+  name: null  # Auto-generated if null
+  tags: ["vit", "tiny-imagenet"]
