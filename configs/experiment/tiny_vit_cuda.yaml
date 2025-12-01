@@ -1,0 +1,45 @@
+# =============================================================================
+# Experiment: ViT Training on PACE ICE with CUDA Kernels
+# =============================================================================
+#
+# Usage:
+#   python train.py experiment=tiny_vit_cuda
+#
+# This config is optimized for PACE ICE GPU nodes:
+# - Uses mixed precision (faster on A100/V100)
+# - Assumes data is in $TMPDIR (fast local SSD)
+# - Configured for single GPU training
+#
+# =============================================================================
+
+# @package _global_
+
+# Override data path (set by train.sh SLURM script)
+data:
+  batch_size: 128
+  num_workers: 4
+
+# Full model (not reduced)
+model:
+  embed_dim: 256
+  depth: 8
+  num_heads: 8
+
+# Training for 50 epochs
+training:
+  learning_rate: 5e-4
+  weight_decay: 0.05
+  warmup_epochs: 5
+  max_epochs: 50
+
+# GPU training with mixed precision
+trainer:
+  accelerator: "gpu"
+  devices: 1
+  precision: "16-mixed"
+  max_epochs: 50
+
+# WandB logging
+wandb:
+  project: "accelerated-vit"
+  tags: ["vit", "tiny-imagenet", "cuda", "pace-ice"]
