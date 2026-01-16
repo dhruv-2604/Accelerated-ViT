@@ -19,17 +19,16 @@
 # -----------------------------------------------------------------------------
 
 #SBATCH -J vit-train                    # Job name
-#SBATCH -A YOUR_ACCOUNT                 # Charge account (e.g., GT-gburdell3)
-#SBATCH -p biggpu                       # Partition (for A100/V100 nodes)
-#SBATCH --gres=gpu:1                    # Request 1 GPU
+#SBATCH -p ice-gpu                      # Partition (PACE ICE GPU nodes)
+#SBATCH --gres=gpu:V100-32GB:1          # Request 1 V100 GPU (good balance of availability)
 #SBATCH -N 1                            # Number of nodes
 #SBATCH --ntasks-per-node=1             # Tasks per node
 #SBATCH --cpus-per-task=4               # CPU cores (for DataLoader workers)
-#SBATCH --mem-per-cpu=8G                # Memory per CPU (32GB total)
-#SBATCH --tmp=20G                       # Local disk space for $TMPDIR
+#SBATCH --mem=32G                       # Total memory
 #SBATCH -t 02:00:00                     # Time limit (2 hours)
 #SBATCH -o logs/train-%j.out            # Output file (%j = job ID)
 #SBATCH -e logs/train-%j.err            # Error file
+#SBATCH -C localSSD                     # Request node with local SSD for fast I/O
 
 # -----------------------------------------------------------------------------
 # Step 1: Environment Setup
