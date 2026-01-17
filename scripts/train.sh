@@ -55,8 +55,7 @@ module load anaconda3
 # Activate conda environment (change 'vit' to your environment name)
 conda activate vit
 
-# Set WandB API key (REPLACE WITH YOUR KEY or set in ~/.bashrc)
-export WANDB_API_KEY="YOUR_WANDB_API_KEY"
+# WandB API key is loaded from ~/.bashrc (set with: echo 'export WANDB_API_KEY="your_key"' >> ~/.bashrc)
 
 # Print environment info
 echo ""
