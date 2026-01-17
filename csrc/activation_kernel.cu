@@ -16,6 +16,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <math.h>
+#include <cstdio>
 
 // GELU approximation constants
 #define SQRT_2_OVER_PI 0.7978845608028654f  // sqrt(2/pi)
