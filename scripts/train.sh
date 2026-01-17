@@ -107,7 +107,7 @@ echo "==========================================================================
 
 # Run training with Hydra config
 python train.py \
-    experiment=tiny_vit_cuda \
+    +experiment=tiny_vit_cuda \
     data.data_dir=$DATA_DEST \
     trainer.accelerator=gpu \
     trainer.devices=1
