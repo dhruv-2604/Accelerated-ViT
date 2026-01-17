@@ -31,20 +31,13 @@ def build_cuda_extension():
         print("=" * 70)
         return []
 
-    # Check 2: Verify CUDA toolkit is properly configured
+    # Note: We only check for nvcc, not torch.cuda.is_available()
+    # Login nodes have nvcc but no GPU - we can still compile there
     try:
         import torch
-        if not torch.cuda.is_available():
-            print("=" * 70)
-            print("⚠️  CUDA RUNTIME NOT AVAILABLE")
-            print("=" * 70)
-            print("PyTorch was compiled without CUDA support.")
-            print("Skipping custom kernel build.")
-            print("=" * 70)
-            return []
+        print(f"PyTorch version: {torch.__version__}")
     except ImportError:
-        print("⚠️  PyTorch not installed. Cannot verify CUDA availability.")
-        print("Attempting to build CUDA extension anyway...")
+        print("⚠️  PyTorch not installed, but nvcc found. Attempting build...")
 
     # CUDA is available - proceed with compilation
     print("=" * 70)
