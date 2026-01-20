@@ -91,6 +91,14 @@ class FusedBiasGELU(nn.Module):
             # This call is cheap if already contiguous (no copy)
             x = x.contiguous()
 
+            # Handle mixed precision: our CUDA kernel only supports float32
+            # Cast to float32, run kernel, cast back to original dtype
+            input_dtype = x.dtype
+            if input_dtype != torch.float32:
+                x = x.float()
+                result = vit_ops.fused_bias_gelu(x, self.bias.float())
+                return result.to(input_dtype)
+
             # Call our custom C++/CUDA function
             # This maps to: csrc/activation.cpp -> fused_bias_gelu_cuda()
             return vit_ops.fused_bias_gelu(x, self.bias)
