@@ -20,7 +20,7 @@
 
 #SBATCH -J vit-train                    # Job name
 #SBATCH -p ice-gpu                      # Partition (PACE ICE GPU nodes)
-#SBATCH --gres=gpu:v100:1               # Request 1 V100 GPU (gres name is lowercase)
+#SBATCH --gres=gpu:h100:1               # Request 1 H100 GPU
 #SBATCH -N 1                            # Number of nodes
 #SBATCH --ntasks-per-node=1             # Tasks per node
 #SBATCH --cpus-per-task=4               # CPU cores (for DataLoader workers)
@@ -28,7 +28,7 @@
 #SBATCH -t 02:00:00                     # Time limit (2 hours)
 #SBATCH -o logs/train-%j.out            # Output file (%j = job ID)
 #SBATCH -e logs/train-%j.err            # Error file
-#SBATCH -C V100-32GB                    # Request 32GB V100 (these nodes have localSSD)
+#SBATCH -C H100                         # Request H100 node
 
 # -----------------------------------------------------------------------------
 # Step 1: Environment Setup
