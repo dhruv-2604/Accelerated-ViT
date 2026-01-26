@@ -83,9 +83,11 @@ class FusedBiasGELU(nn.Module):
         """
 
         # ====================================================================
-        # PATH 1: Custom CUDA Kernel (Fast Path)
+        # PATH 1: Custom CUDA Kernel (Fast Path - Inference Only)
         # ====================================================================
-        if self.using_custom_ops and x.is_cuda:
+        # Only use custom kernel when NOT training (no gradients needed)
+        # Our kernel doesn't implement backward pass, so use PyTorch for training
+        if self.using_custom_ops and x.is_cuda and not torch.is_grad_enabled():
             # CRITICAL: Ensure tensor is contiguous in memory
             # Non-contiguous tensors will crash the CUDA kernel!
             # This call is cheap if already contiguous (no copy)
