@@ -83,27 +83,18 @@ class FusedBiasGELU(nn.Module):
         """
 
         # ====================================================================
-        # PATH 1: Custom CUDA Kernel (Fast Path - Inference Only)
+        # PATH 1: Custom CUDA Kernel (DISABLED FOR NOW)
         # ====================================================================
-        # Only use custom kernel when NOT training (no gradients needed)
-        # Our kernel doesn't implement backward pass, so use PyTorch for training
-        if self.using_custom_ops and x.is_cuda and not torch.is_grad_enabled():
-            # CRITICAL: Ensure tensor is contiguous in memory
-            # Non-contiguous tensors will crash the CUDA kernel!
-            # This call is cheap if already contiguous (no copy)
-            x = x.contiguous()
-
-            # Handle mixed precision: our CUDA kernel only supports float32
-            # Cast to float32, run kernel, cast back to original dtype
-            input_dtype = x.dtype
-            if input_dtype != torch.float32:
-                x = x.float()
-                result = vit_ops.fused_bias_gelu(x, self.bias.float())
-                return result.to(input_dtype)
-
-            # Call our custom C++/CUDA function
-            # This maps to: csrc/activation.cpp -> fused_bias_gelu_cuda()
-            return vit_ops.fused_bias_gelu(x, self.bias)
+        # TODO: Re-enable after debugging memory issues
+        # The kernel works for inference but causes OOM during training
+        # if self.using_custom_ops and x.is_cuda and not torch.is_grad_enabled():
+        #     x = x.contiguous()
+        #     input_dtype = x.dtype
+        #     if input_dtype != torch.float32:
+        #         x = x.float()
+        #         result = vit_ops.fused_bias_gelu(x, self.bias.float())
+        #         return result.to(input_dtype)
+        #     return vit_ops.fused_bias_gelu(x, self.bias)
 
         # ====================================================================
         # PATH 2: PyTorch Fallback (Compatibility Path)
